@@ -7,7 +7,7 @@ import matplotlib.pyplot
 from PIL import Image, ImageTk
 from graphviz import Graph
 
-seed = 458795
+seed = 4587955
 alpha = 0.5
 
 
@@ -72,16 +72,25 @@ class MainWindow:
         new_p0_btn = tk.Button(frame, text="Change Patient Zero", anchor="center", command=self.update_patient0)
         new_p0_btn.grid(row=5, column=0, padx=2, pady=2, sticky="E")
 
-        gen_btn = tk.Button(frame, text="Generate New Network", anchor="center", command=self.gen_network)
+        gen_btn = tk.Button(frame, text="Generate New Random Network", anchor="center", command=self.gen_network)
         gen_btn.grid(row=5, column=1, padx=2, pady=2, sticky="W")
 
-        sim_btn = tk.Button(frame, text="Simulate 50 Epidemics", anchor="center", command=self.simulate_epis)
-        sim_btn.grid(row=6, columnspan=2, padx=2, pady=2)
+        PLC_btn = tk.Button(frame, text="Generate New PLC Network", anchor="center", command=self.gen_PLC)
+        PLC_btn.grid(row=6, column=0, padx=2, pady=2, sticky="E")
 
-        ttk.Separator(frame, orient='horizontal').grid(row=7, columnspan=2, sticky="EW")
+        ER_btn = tk.Button(frame, text="Generate New ER Network", anchor="center", command=self.gen_ER)
+        ER_btn.grid(row=6, column=1, padx=2, pady=2, sticky="W")
+
+        WS_btn = tk.Button(frame, text="Generate New WS Network", anchor="center", command=self.gen_WS)
+        WS_btn.grid(row=7, column=0, padx=2, pady=2, sticky="E")
+
+        sim_btn = tk.Button(frame, text="Simulate 50 Epidemics", anchor="center", command=self.simulate_epis)
+        sim_btn.grid(row=7, column=1, padx=2, pady=2, sticky="W")
+
+        ttk.Separator(frame, orient='horizontal').grid(row=8, columnspan=2, sticky="EW")
 
         self.err_lbl = tk.Label(frame, text="", anchor="center")
-        self.err_lbl.grid(row=8, columnspan=2, padx=2, pady=2, sticky="EW")
+        self.err_lbl.grid(row=9, columnspan=2, padx=2, pady=2, sticky="EW")
 
         frame.grid(row=0, column=0, sticky="NSEW")
         self.root.mainloop()
@@ -129,6 +138,54 @@ class MainWindow:
             pass
         pass
 
+    def gen_PLC(self):
+        if self.txt_check():
+            self.nodes = int(self.node_txt.get("1.0", 'end-1c'))
+            self.edges = int(self.edge_txt.get("1.0", 'end-1c'))
+            self.p0 = int(self.p0_txt.get("1.0", 'end-1c'))
+            self.adj_lists, nodes = powerlaw_cluster("edgelists.txt", self.nodes, self.edges, 0.2)
+            edg_list = get_edge_list("edgelists.txt")
+            epi_log = run_epi(self.adj_lists, self.nodes, self.p0)
+            make_graphs(edg_list, epi_log)
+            self.img_count = 0
+            self.img_max = int(len(epi_log))
+            self.change_img()
+            self.err_lbl.config(text="")
+            pass
+        pass
+
+    def gen_ER(self):
+        if self.txt_check():
+            self.nodes = int(self.node_txt.get("1.0", 'end-1c'))
+            self.edges = int(self.edge_txt.get("1.0", 'end-1c'))
+            self.p0 = int(self.p0_txt.get("1.0", 'end-1c'))
+            self.adj_lists, nodes = erdos_renyi("edgelists.txt", self.nodes, 0.05)
+            edg_list = get_edge_list("edgelists.txt")
+            epi_log = run_epi(self.adj_lists, self.nodes, self.p0)
+            make_graphs(edg_list, epi_log)
+            self.img_count = 0
+            self.img_max = int(len(epi_log))
+            self.change_img()
+            self.err_lbl.config(text="")
+            pass
+        pass
+
+    def gen_WS(self):
+        if self.txt_check():
+            self.nodes = int(self.node_txt.get("1.0", 'end-1c'))
+            self.edges = int(self.edge_txt.get("1.0", 'end-1c'))
+            self.p0 = int(self.p0_txt.get("1.0", 'end-1c'))
+            self.adj_lists, nodes = watts_stogatz("edgelists.txt", self.nodes, 4, 0.2)
+            edg_list = get_edge_list("edgelists.txt")
+            epi_log = run_epi(self.adj_lists, self.nodes, self.p0)
+            make_graphs(edg_list, epi_log)
+            self.img_count = 0
+            self.img_max = int(len(epi_log))
+            self.change_img()
+            self.err_lbl.config(text="")
+            pass
+        pass
+
     def update_patient0(self):
         if self.txt_check():
             self.p0 = int(self.p0_txt.get("1.0", 'end-1c'))
@@ -165,13 +222,14 @@ class MainWindow:
         photo = ImageTk.PhotoImage(image)
         self.img_label.configure(image=photo)
         self.img_label.image = photo
+        self.img_count = 0
         self.root.update_idletasks()
         pass
 
 
 def size_check(wi, hi):
     lrg = max(wi, hi)
-    nlrg = 900
+    nlrg = 700
     ratio = nlrg / lrg
     return int(wi * ratio), int(hi * ratio)
 
@@ -206,6 +264,128 @@ def make_network(filename: str, nodes: int, edges: int):
         adj_lists[fr].append(to)
         adj_lists[to].append(fr)
         edg_count += 1
+        pass
+
+    with open(filename, "w") as f:
+        f.write("Nodes: " + str(nodes) + '\t')
+        f.write("Edges: " + str(edg_count) + '\n')
+        for li in adj_lists:
+            for n in li:
+                f.write(str(n) + '\t')
+                pass
+            f.write('\n')
+            pass
+        pass
+    return adj_lists, nodes
+
+
+def erdos_renyi(filename: str, nodes: int, edge_probability: float):
+    adj_lists = [[] for _ in range(nodes)]
+    edg_count = 0
+    for n in range(nodes):
+        for m in range(nodes):
+            if n == m:
+                continue
+            if rand.random() <= (1 - edge_probability):
+                continue
+            adj_lists[n].append(m)
+            adj_lists[m].append(n)
+            edg_count += 1
+            pass
+        pass
+
+    with open(filename, "w") as f:
+        f.write("Nodes: " + str(nodes) + '\t')
+        f.write("Edges: " + str(edg_count) + '\n')
+        for li in adj_lists:
+            for n in li:
+                f.write(str(n) + '\t')
+                pass
+            f.write('\n')
+            pass
+        pass
+    return adj_lists, nodes
+
+
+def watts_stogatz(filename: str, nodes: int, k: int, beta: float):
+    adj_lists = [[] for _ in range(nodes)]
+    edg_count = 0
+    for n in range(nodes):
+        for m in range(int(k / 2)):
+            if m == int(k / 2) - 1:
+                continue
+            to = (m + 1 + n) % nodes
+            adj_lists[n].append(to)
+            adj_lists[to].append(n)
+            edg_count += 1
+            pass
+        pass
+
+    for n in range(nodes):
+        if rand.random() > beta:
+            to = int(k / 2 + n) % nodes
+            adj_lists[n].append(to)
+            adj_lists[to].append(n)
+            edg_count += 1
+            continue
+        while True:
+            fr = rand.randint(0, nodes - 1)
+            if fr != n:
+                if fr not in adj_lists[n]:
+                    break
+                    pass
+                pass
+            pass
+        adj_lists[fr].append(n)
+        adj_lists[n].append(fr)
+        edg_count += 1
+        pass
+
+    with open(filename, "w") as f:
+        f.write("Nodes: " + str(nodes) + '\t')
+        f.write("Edges: " + str(edg_count) + '\n')
+        for li in adj_lists:
+            for n in li:
+                f.write(str(n) + '\t')
+                pass
+            f.write('\n')
+            pass
+        pass
+    return adj_lists, nodes
+
+
+def powerlaw_cluster(filename: str, nodes: int, edges: int, beta: float):
+    adj_lists = [[] for _ in range(nodes)]
+    edg_count = 0
+    to = 0
+    for _ in range(edges):
+        while True:
+            fr = rand.randint(0, nodes - 1)
+            to = rand.randint(0, nodes - 1)
+            if fr != to:
+                if fr not in adj_lists[to]:
+                    break
+                    pass
+                pass
+            pass
+        adj_lists[fr].append(to)
+        adj_lists[to].append(fr)
+        edg_count += 1
+        if edg_count == 1:
+            pass
+        fr2 = 0
+        if rand.random() <= beta:
+            if len(adj_lists[fr]) > 0:
+                fr2 = adj_lists[fr][rand.randint(0, len(adj_lists[fr]) - 1)]
+                pass
+            pass
+        if fr2 not in adj_lists[to]:
+            if fr2 != to:
+                adj_lists[fr2].append(to)
+                adj_lists[to].append(fr2)
+                edg_count += 1
+                pass
+            pass
         pass
 
     with open(filename, "w") as f:
@@ -259,8 +439,12 @@ def get_edge_list(inp: str) -> []:
         for fr, line in enumerate(lines):
             line = line.rstrip()
             line = line.split('\t')
-            for to in line:
-                edg_list.append([fr, int(to)])
+            if len(line) > 0:
+                for to in line:
+                    if to != '':
+                        edg_list.append([fr, int(to)])
+                        pass
+                    pass
                 pass
             pass
     return edg_list
@@ -305,9 +489,11 @@ def run_epis(adj_lists, nodes, p0: int = 0):
         pass
 
     avg = []
+    avg_all = []
     for day, s in enumerate(sums):
         if counts[day] > 0:
             avg.append(s / counts[day])
+            avg_all.append(s / epidemics)
         pass
 
     max_len = max(lengths)
@@ -327,12 +513,14 @@ def run_epis(adj_lists, nodes, p0: int = 0):
         plot.plot(x, el, linewidth=1, alpha=0.3, color='gray')
         pass
 
-    plot.plot(x, avg)
+    plot.plot(x, avg, label="Average of Running")
+    plot.plot(x, avg_all, label="Average of All")
     fig.suptitle("Epidemic Profiles for 50 Epidemics")
     plot.set_ylabel("Newely Infected Individuals")
     plot.set_xlabel("Day")
     plot.set_xticks(x)
     plot.set_xticklabels(x_lbls)
+    plot.legend()
     fig.tight_layout()
     fig.savefig("epi_profile.png")
 
@@ -388,6 +576,9 @@ def main():
     nodes = 64
     edges = 128
     adj_lists, nodes = make_network("edgelists.txt", nodes, edges)
+    # adj_lists, nodes = powerlaw_cluster("edgelists.txt", nodes, edges, 0.2)
+    # adj_lists, nodes = watts_stogatz("edgelists.txt", nodes, 4, 0.2)
+    # adj_lists, nodes = erdos_renyi("edgelists.txt", nodes, 0.05)
     edg_list = get_edge_list("edgelists.txt")
     epi_log = run_epi(adj_lists, nodes)
     make_graphs(edg_list, epi_log)
